@@ -579,7 +579,101 @@ function registrar_keyword_map(): array
         'gname.com' => 'https://www.gname.com',
         'key-systems.net' => 'https://www.key-systems.net',
         'rrpproxy' => 'https://www.rrpproxy.net',
+
+        // ============ 增强补全：常见但此前缺失的注册商 ============
+        'spaceship' => 'https://www.spaceship.com',
+        'porkbun' => 'https://porkbun.com',
+        'dynadot' => 'https://www.dynadot.com',
+        'namesilo' => 'https://www.namesilo.com',
+        'sav.com' => 'https://www.sav.com',
+        'sav,' => 'https://www.sav.com',
+        'hostinger' => 'https://www.hostinger.com',
+        'ovh' => 'https://www.ovhcloud.com',
+        'gandi' => 'https://www.gandi.net',
+        'ionos' => 'https://www.ionos.com',
+        '1&1' => 'https://www.ionos.com',
+        'enom' => 'https://www.enom.com',
+        'tucows' => 'https://tucows.com',
+        'wix' => 'https://www.wix.com',
+        'squarespace' => 'https://domains.squarespace.com',
+        'automattic' => 'https://wordpress.com',
+        'wordpress' => 'https://wordpress.com',
+        'markmonitor' => 'https://www.markmonitor.com',
+        'csc corporate domains' => 'https://www.cscdbs.com',
+        'com laude' => 'https://comlaude.com',
+        'nom-iq' => 'https://comlaude.com',
+        'safenames' => 'https://www.safenames.net',
+        'ascio' => 'https://www.ascio.com',
+        'epik' => 'https://www.epik.com',
+        'name.com' => 'https://www.name.com',
+        'hover' => 'https://www.hover.com',
+        'namebright' => 'https://www.namebright.com',
+        'openprovider' => 'https://www.openprovider.com',
+        'realtime register' => 'https://www.realtimeregister.com',
+        'megazone' => 'https://www.hosting.kr',
+        'hosting.kr' => 'https://www.hosting.kr',
+        'gabia' => 'https://www.gabia.com',
+        'whois corp' => 'https://whois.co.kr',
+        'onamae' => 'https://www.onamae.com',
+        'お名前' => 'https://www.onamae.com',
+        'sakura' => 'https://www.sakura.ad.jp',
+        'value-domain' => 'https://www.value-domain.com',
+        'hostgator' => 'https://www.hostgator.com',
+        'bluehost' => 'https://www.bluehost.com',
+        'dreamhost' => 'https://www.dreamhost.com',
+        'namebright.com' => 'https://www.namebright.com',
     ];
+}
+
+/**
+ * 清洗注册商名称，用于展示与识别。
+ *
+ * WHOIS/RDAP 常返回隐私占位符或无意义值（如 "REDACTED FOR PRIVACY"、
+ * "Not Disclosed"、"N/A"、"-"）。这类值不应作为注册商名展示，也不利于官网识别。
+ * 本函数：去首尾引号/空白、折叠空白；当归一化后命中"垃圾占位值"时返回空串，
+ * 以便上层回退到 RDAP 结构化字段或直接隐藏，避免展示误导性内容。
+ *
+ * 仅做精确（整串）匹配，绝不做子串匹配，避免误伤含这些词的真实注册商名。
+ */
+function registrar_clean(string $name): string
+{
+    $name = trim($name);
+    if ($name === '') {
+        return '';
+    }
+
+    // 去掉包裹的引号
+    $name = trim($name, "\"'");
+    // 折叠内部连续空白
+    $name = preg_replace('/\s+/u', ' ', $name);
+    $name = trim($name);
+    if ($name === '') {
+        return '';
+    }
+
+    // 归一化后与"垃圾占位值"做整串比较
+    $norm = mb_strtolower($name);
+    $norm = preg_replace('/[^\p{L}\p{N}]+/u', '', $norm); // 仅留字母数字
+
+    static $junk = null;
+    if ($junk === null) {
+        $raw = [
+            'redactedforprivacy', 'redacted', 'dataredacted', 'redactedforgdpr',
+            'redactedwhois', 'notdisclosed', 'notdisclosed!', 'notavailable',
+            'notapplicable', 'na', 'nan', 'none', 'null', 'nil', 'unknown',
+            'private', 'privacyprotected', 'whoisprivacy', 'privacyprotect',
+            'statutorymaskingenabled', 'gdprmasked', 'gdpr', 'masked',
+            'nodata', 'withheldforprivacy', 'domainprivacy', 'privacyservice',
+            'nonepublic', 'confidential', 'hidden', 'protected',
+        ];
+        $junk = array_fill_keys($raw, true);
+    }
+
+    if ($norm === '' || isset($junk[$norm])) {
+        return '';
+    }
+
+    return $name;
 }
 
 /**

@@ -214,6 +214,21 @@ class Parser
     "domain name not known", // generic
     "available for registration", // generic
     "domain status: free", // generic
+    // ---- 扩充：更多注册局对"可注册/未注册"的明确表述（均为完整短语，避免误伤已注册域名）----
+    "no matching objects", // generic
+    "not been registered", // hk 等
+    "domain not found", // generic
+    "no such host", // generic
+    "free for registration", // generic
+    "domain available", // generic
+    "domain name available", // generic
+    "we do not have an entry", // generic
+    "the queried object does not exist", // DENIC 风格
+    "no data found", // generic
+    "no matching entries", // generic
+    "domain is free", // generic
+    "this query returned 0 objects", // afilias 风格
+    "domain name has not been registered", // hk 完整表述
   ];
 
   protected function getUnregisteredRegExp()
