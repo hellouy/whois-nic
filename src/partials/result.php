@@ -12,6 +12,18 @@
       if (isset($statusMapping[$code])) { return $statusMapping[$code]; }
       return $statusMappingLower[strtolower($code)] ?? $code;
     };
+    // 状态代码 → 通俗解释（大小写不敏感）。未命中则返回空串，模板不渲染解释行。
+    $statusExplain = require __DIR__ . "/../lib/status-explain.php";
+    $explainStatus = function (string $code) use ($statusExplain): string {
+      $key = strtolower(str_replace(' ', '', $code));
+      if (isset($statusExplain[$key])) { return $statusExplain[$key]; }
+      // 兼容映射表中带空格的键（如 "pendingdelete restorable"）
+      $keySpaced = strtolower(trim($code));
+      return $statusExplain[$keySpaced] ?? '';
+    };
+    // 清洗注册商名称：去除隐私占位符/无意义值。清洗后若为空，下方 RDAP 结构化兜底
+    // 会尝试从 RDAP 实体的 vcard 补全真实注册商名，避免展示 "REDACTED FOR PRIVACY" 之类。
+    $parser->registrar = registrar_clean($parser->registrar);
     $registrarLink = $parser->registrar ? ($parser->registrarURL ?: registrar_website($parser->registrar)) : "";
 
     // 域名状态 → 颜色（活跃 / 即将到期 / 已过期）
@@ -214,7 +226,7 @@
         if ($parser->registrar === '') {
           $fn = $vcardGet($vcardEls($registrarEntity), 'fn') ?: $vcardGet($vcardEls($registrarEntity), 'org');
           if ($fn && !empty($fn[3]) && is_string($fn[3])) {
-            $parser->registrar = trim($fn[3]);
+            $parser->registrar = registrar_clean(trim($fn[3]));
             if ($registrarLink === '') {
               $registrarLink = $parser->registrarURL ?: registrar_website($parser->registrar);
             }
@@ -690,7 +702,8 @@
               <div class="nw-status-list">
                 <?php foreach ($parser->status as $st):
                   $code = $st["text"];
-                  $cn = $translateStatus($code); ?>
+                  $cn = $translateStatus($code);
+                  $explain = $explainStatus($code); ?>
                   <div class="nw-status-item">
                     <span class="nw-status-bullet" style="background-color: <?= $eppColor($code); ?>"></span>
                     <div class="nw-status-item-body">
@@ -700,6 +713,9 @@
                         <span class="nw-status-name"><?= htmlspecialchars($cn, ENT_QUOTES, 'UTF-8'); ?></span>
                       <?php endif; ?>
                       <p class="nw-status-code"><?= htmlspecialchars($code, ENT_QUOTES, 'UTF-8'); ?></p>
+                      <?php if ($explain !== ''): ?>
+                        <p class="nw-status-explain"><?= htmlspecialchars($explain, ENT_QUOTES, 'UTF-8'); ?></p>
+                      <?php endif; ?>
                     </div>
                   </div>
                 <?php endforeach; ?>

@@ -182,7 +182,7 @@ $whoisData = null;
 $rdapData = null;
 $parser = new Parser("");
 $error = null;
-$invalidDomain = false; // 仅当域名格式/后缀真正非法时为 true
+$invalidDomain = false; // 仅当域名格���/后缀真正非法时为 true
 $dnsActive = false; // DNS 层面是否检测到域名已被注册/在用
 $dnsInfo = null; // WHOIS/RDAP 缺失时，DNS 兜底拉取到的实际记录（NS/A/AAAA/MX）
 
@@ -294,6 +294,11 @@ if ($domain) {
         $sMaxAge = 1800; // 未注册/未知：30 分钟
       }
       header("Cache-Control: public, max-age=0, s-maxage={$sMaxAge}, stale-while-revalidate=86400");
+      // 清洗注册商名称（去除隐私占位符），使 JSON 接口与批量弹窗展示保持一致
+      if ($parser->registered && $parser->registrar) {
+        require_once __DIR__ . "/lib/registrar-map.php";
+        $parser->registrar = registrar_clean($parser->registrar);
+      }
       $value = ["code" => 0, "msg" => "Query successful", "data" => $parser];
       // WHOIS/RDAP 无详情但 DNS 兜底判定已注册时，附带实际 DNS 记录
       if (!$parser->registered && $dnsActive && $dnsInfo) {

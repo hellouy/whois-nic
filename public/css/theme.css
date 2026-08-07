@@ -2302,6 +2302,14 @@ a.nw-status-name:hover { text-decoration: underline; }
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+/* 状态代码的通俗解释：面向普通用户的一句话说明 */
+.nw-status-explain {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: hsl(var(--muted-foreground));
+}
+
 /* NS 列表 */
 .nw-ns-list { display: flex; flex-direction: column; gap: 8px; }
 

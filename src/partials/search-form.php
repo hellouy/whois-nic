@@ -77,8 +77,12 @@
                 $resultMessage = t('msg_taken');
                 $resultState = 'taken';
             } elseif ($parser->unknown) {
-                $resultMessage = t('msg_unknown');
-                $resultState = 'unknown';
+                // 走到这里意味着：注册局查询成功但无任何可识别记录（注册商/日期/状态/NS 全空），
+                // 且 DNS 也无 NS/A/AAAA/MX 记录（有记录会在上面判为 taken）。
+                // 综合两项强信号 → 该域名极可能"可注册"，直接给出明确的未注册提示，
+                // 避免此前对这些冷门后缀只显示模糊的"未知"。
+                $resultMessage = t('msg_available');
+                $resultState = 'available';
             } else {
                 $resultMessage = t('msg_available');
                 $resultState = 'available';
