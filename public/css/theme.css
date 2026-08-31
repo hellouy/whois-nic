@@ -2750,6 +2750,35 @@ a.nw-dns-provider:hover {
 
 .nw-forecast-title svg { color: hsl(var(--muted-foreground)); }
 
+.nw-forecast-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nw-forecast-confidence {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: hsl(var(--muted-foreground));
+  background: hsl(var(--background));
+  border: 1px solid hsl(var(--border));
+}
+
+.nw-forecast-confidence-high {
+  color: hsl(var(--ok));
+  background: hsl(var(--ok-bg));
+  border-color: hsl(var(--ok) / 0.3);
+}
+
+.nw-forecast-confidence-est {
+  color: hsl(var(--warn));
+  background: hsl(var(--warn-bg));
+  border-color: hsl(var(--warn) / 0.3);
+}
+
 .nw-forecast-badge {
   font-size: 10px;
   font-weight: 600;
@@ -2791,6 +2820,13 @@ a.nw-dns-provider:hover {
   letter-spacing: -0.01em;
   color: hsl(var(--foreground));
   font-variant-numeric: tabular-nums;
+}
+
+.nw-forecast-hero-window {
+  font-size: 11px;
+  color: hsl(var(--muted-foreground));
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
 }
 
 .nw-forecast-hero-sub {
