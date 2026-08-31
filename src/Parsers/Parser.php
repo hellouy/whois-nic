@@ -61,6 +61,63 @@ class Parser
 
   public $pendingDelete = false;
 
+  // ---- 扩展结构化字段：注册商详情 / 联系人 / DNS 提供商 ----
+  // 下沉自 result.php 模板层的正则提取，使 ?json=1 API 也能返回结构化信息。
+
+  public $registryDomainId = "";
+
+  public $whoisServer = "";
+
+  public $registrarIanaId = "";
+
+  public $registrarPhone = "";
+
+  public $registrarAddress = "";
+
+  public $reseller = "";
+
+  public $registrantName = "";
+
+  public $registrantOrg = "";
+
+  public $registrantCity = "";
+
+  public $registrantState = "";
+
+  public $registrantCountry = "";
+
+  public $registrantEmail = "";
+
+  public $registrantPhone = "";
+
+  public $adminName = "";
+
+  public $adminOrg = "";
+
+  public $adminEmail = "";
+
+  public $adminPhone = "";
+
+  public $adminCountry = "";
+
+  public $techName = "";
+
+  public $techOrg = "";
+
+  public $techEmail = "";
+
+  public $techPhone = "";
+
+  public $techCountry = "";
+
+  public $abuseEmail = "";
+
+  public $abusePhone = "";
+
+  public $dnsProvider = "";
+
+  public $dnsProviderUrl = "";
+
   public function __construct($data)
   {
     // 清除部分 registry 响应开头的 UTF-8 BOM 与零宽字符。
@@ -117,6 +174,9 @@ class Parser
     $this->nameServers = $this->getNameServers();
 
     $this->dnssec = $this->getDNSSEC();
+
+    // 扩展字段提取：注册商详情 / 联系人 / 注册局 ID 等（WHOIS 文本路径）
+    $this->extractExtended();
 
     $this->age = $this->getDateDiffText($this->creationDateISO8601, "now");
     $this->ageSeconds = $this->getDateDiffSeconds($this->creationDateISO8601, "now");
@@ -905,5 +965,165 @@ class Parser
       empty($this->availableDate) &&
       empty($this->status) &&
       empty($this->nameServers);
+  }
+
+  // ==================== 扩展字段提取（WHOIS 文本路径） ====================
+  // 这些字段此前仅在 result.php 模板层用正则提取，前端可用但 API（?json=1）
+  // 拿不到。下沉到解析器后，API 与前端都能拿到结构化联系人 / 注册商信息。
+  // 子类（ParserRDAP）可覆盖 extractExtended() 以支持 RDAP JSON 路径。
+
+  // 隐私占位值判定：只丢弃"纯占位提示"（如 REDACTED FOR PRIVACY / Data Protected），
+  // 但保留真实的隐私托管方身份（如 "Withheld for Privacy ehf"）——那些是有价值的信息。
+  protected function isPlaceholderValue($v): bool
+  {
+    $s = trim($v);
+    if ($s === '') {
+      return true;
+    }
+    $low = strtolower($s);
+    static $exact = [
+      'redacted', 'redacted for privacy', 'redacted for gdpr', 'redacted for privacy purposes',
+      'not disclosed', 'not disclosed!', 'not available', 'not applicable', 'n/a', 'na',
+      'data protected', 'data redacted', 'gdpr masked', 'gdpr redacted',
+      'statutory masking enabled', 'non-public data', 'private', 'privacy',
+      'not shown', 'hidden', 'withheld', 'unknown', 'none', '-', '.',
+    ];
+    if (in_array($low, $exact, true)) {
+      return true;
+    }
+    if (preg_match('/^(redacted|not disclosed|data protected|gdpr|statutory masking|non-public data)\b/i', $s)) {
+      return true;
+    }
+    if (preg_match('/redacted for privacy\.?$/i', $s)) {
+      return true;
+    }
+    if (preg_match('/^(please query|please refer|please see|see )\b/i', $s)) {
+      return true;
+    }
+    return false;
+  }
+
+  // 邮箱必须含 @ 且不含空白；否则视为解析噪声丢弃
+  protected function cleanEmailValue($v)
+  {
+    return ($v !== '' && strpos($v, '@') !== false && !preg_match('/\s/', $v)) ? trim($v) : '';
+  }
+
+  // 电话必须含数字且不含 @；否则视为解析噪声丢弃
+  protected function cleanPhoneValue($v)
+  {
+    return ($v !== '' && preg_match('/\d/', $v) && strpos($v, '@') === false) ? trim($v) : '';
+  }
+
+  // 从文本中按标签提取值：冒号后只允许同一行内的空格/制表符，值必须以非空白字符起始，
+  // 避免字段为空时把后续行（如下一标签或 Domain Status）误当成值。
+  protected function grabValue($labels, $data = null)
+  {
+    $data = $data ?? $this->data;
+    foreach ((array) $labels as $lb) {
+      if (preg_match('/^[ \t]*' . preg_quote($lb, '/') . '[ \t]*:[ \t]*(\S.*?)[ \t]*\r?$/mi', $data, $m)) {
+        $v = trim($m[1]);
+        if (!$this->isPlaceholderValue($v)) {
+          return $v;
+        }
+      }
+    }
+    return '';
+  }
+
+  // 注册商相关字段的关键词表（下沉自 result.php）
+  protected const REGISTRAR_DETAIL_LABELS = [
+    'registryDomainId' => ['Registry Domain ID'],
+    'whoisServer' => ['Registrar WHOIS Server', 'WHOIS Server'],
+    'registrarIanaId' => ['Registrar IANA ID', 'IANA ID', 'Sponsoring Registrar IANA ID'],
+    'registrarPhone' => ['Registrar Phone', 'Registrar Contact Phone'],
+    'reseller' => ['Reseller', 'Reseller Name'],
+  ];
+
+  // 注册商地址各组成部分标签
+  protected const REGISTRAR_ADDRESS_LABELS = [
+    'Registrar Street', 'Registrar Address',
+    'Registrar City',
+    'Registrar State/Province', 'Registrar Province',
+    'Registrar Postal Code', 'Registrar Postal',
+    'Registrar Country',
+  ];
+
+  // 联系人关键词表：key 为字段后缀，value 为标签候选
+  protected const CONTACT_LABELS = [
+    'registrantName' => ['Registrant Name', 'Registrant Contact Name', 'Registrant', 'Holder', 'Holder Name', 'Domain Holder', 'Owner', 'Owner Name', 'Registrant Contact'],
+    'registrantOrg' => ['Registrant Organization', 'Registrant Organisation', 'Registrant Org', 'Holder Organization', 'Organization', 'Organisation', 'Registrant Company'],
+    'registrantCity' => ['Registrant City', 'Holder City'],
+    'registrantCountry' => ['Registrant Country', 'Registrant Country/Economy', 'Holder Country', 'Country'],
+    'registrantState' => ['Registrant State/Province', 'Registrant Province', 'Registrant State', 'Holder State/Province'],
+    'registrantEmail' => ['Registrant Email', 'Registrant Contact Email', 'Holder Email', 'Owner Email', 'e-mail'],
+    'registrantPhone' => ['Registrant Phone', 'Registrant Contact Phone', 'Holder Phone', 'Owner Phone'],
+    'adminName' => ['Admin Name', 'Administrative Contact Name', 'Administrative Contact'],
+    'adminOrg' => ['Admin Organization', 'Admin Organisation', 'Administrative Contact Organization'],
+    'adminEmail' => ['Admin Email', 'Administrative Contact Email'],
+    'adminPhone' => ['Admin Phone', 'Administrative Contact Phone'],
+    'adminCountry' => ['Admin Country', 'Administrative Contact Country'],
+    'techName' => ['Tech Name', 'Technical Contact Name', 'Technical Contact'],
+    'techOrg' => ['Tech Organization', 'Tech Organisation', 'Technical Contact Organization'],
+    'techEmail' => ['Tech Email', 'Technical Contact Email'],
+    'techPhone' => ['Tech Phone', 'Technical Contact Phone'],
+    'techCountry' => ['Tech Country', 'Technical Contact Country'],
+    'abuseEmail' => ['Registrar Abuse Contact Email', 'Abuse Contact Email', 'Abuse Email'],
+    'abusePhone' => ['Registrar Abuse Contact Phone', 'Abuse Contact Phone', 'Abuse Phone'],
+  ];
+
+  // 提取扩展字段的入口（WHOIS 文本路径）
+  protected function extractExtended()
+  {
+    $this->registryDomainId = $this->grabValue(self::REGISTRAR_DETAIL_LABELS['registryDomainId']);
+    $this->whoisServer = $this->grabValue(self::REGISTRAR_DETAIL_LABELS['whoisServer']);
+    $this->registrarIanaId = $this->grabValue(self::REGISTRAR_DETAIL_LABELS['registrarIanaId']);
+    $this->registrarPhone = $this->cleanPhoneValue($this->grabValue(self::REGISTRAR_DETAIL_LABELS['registrarPhone']));
+    $this->reseller = $this->grabValue(self::REGISTRAR_DETAIL_LABELS['reseller']);
+
+    // 注册商地址：拼接街道 / 城市 / 省州 / 邮编 / 国家（任一存在即显示）
+    $addrParts = [];
+    foreach ([
+      ['Registrar Street', 'Registrar Address'],
+      ['Registrar City'],
+      ['Registrar State/Province', 'Registrar Province'],
+      ['Registrar Postal Code', 'Registrar Postal'],
+      ['Registrar Country'],
+    ] as $labels) {
+      $v = $this->grabValue($labels);
+      if ($v !== '') {
+        $addrParts[] = $v;
+      }
+    }
+    $this->registrarAddress = implode(' · ', $addrParts);
+
+    foreach (self::CONTACT_LABELS as $field => $labels) {
+      $v = $this->grabValue($labels);
+      if (strpos($field, 'Email') !== false) {
+        $v = $this->cleanEmailValue($v);
+      } elseif (strpos($field, 'Phone') !== false) {
+        $v = $this->cleanPhoneValue($v);
+      }
+      $this->$field = $v;
+    }
+
+    $this->detectDnsProvider();
+  }
+
+  // 识别 DNS 提供商：从名称服务器中取第一个可识别品牌（NS 通常同属一家）。
+  // 供基类与 ParserRDAP 共用（两者都会设置 nameServers）。
+  protected function detectDnsProvider()
+  {
+    require_once __DIR__ . "/../lib/dns-provider-map.php";
+    $this->dnsProvider = '';
+    $this->dnsProviderUrl = '';
+    foreach (($this->nameServers ?: []) as $ns) {
+      $info = dns_provider_detect($ns);
+      if ($info['name'] !== '') {
+        $this->dnsProvider = $info['name'];
+        $this->dnsProviderUrl = $info['url'];
+        break;
+      }
+    }
   }
 }

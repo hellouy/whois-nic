@@ -408,6 +408,44 @@ class Lookup
       }
     }
 
+    // 扩展字段合并：RDAP 有值则覆盖 WHOIS（仅当 WHOIS 缺失或 RDAP 更完整时）。
+    // 这些字段多为字符串，RDAP 优先能补全薄注册局 / RDAP-first 的 gTLD 缺失信息。
+    $extendedProperties = [
+      "registryDomainId",
+      "whoisServer",
+      "registrarIanaId",
+      "registrarPhone",
+      "registrarAddress",
+      "reseller",
+      "registrantName",
+      "registrantOrg",
+      "registrantCity",
+      "registrantState",
+      "registrantCountry",
+      "registrantEmail",
+      "registrantPhone",
+      "adminName",
+      "adminOrg",
+      "adminEmail",
+      "adminPhone",
+      "adminCountry",
+      "techName",
+      "techOrg",
+      "techEmail",
+      "techPhone",
+      "techCountry",
+      "abuseEmail",
+      "abusePhone",
+      "dnsProvider",
+      "dnsProviderUrl",
+    ];
+
+    foreach ($extendedProperties as $property) {
+      if (empty($this->parser->$property) && !empty($this->rdapParser->$property)) {
+        $this->parser->$property = $this->rdapParser->$property;
+      }
+    }
+
     foreach (["ageSeconds", "remainingSeconds"] as $property) {
       if ($this->rdapParser->$property !== null) {
         $this->parser->$property = $this->rdapParser->$property;
